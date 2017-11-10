@@ -58,8 +58,8 @@ class cache {
 			}
 
 			slot = end % chunks_num_;
-			chunk = queue_[slot].load();
-			if (chunk != nullptr) {
+			T* prev_chunk = queue_[slot].load();
+			if (prev_chunk != nullptr) {
 				end = end_.load();
 				continue;
 			}
