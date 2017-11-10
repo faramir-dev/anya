@@ -23,7 +23,7 @@ class cache {
 		::uint64_t slot;
 		T* chunk = nullptr;
 		beg = beg_.load();
-		do {
+		for (;;) {
 			end = end_.load();
 
 			if (beg >= end) {
@@ -38,7 +38,9 @@ class cache {
 				continue;
 			}
 
-		} while(beg_.compare_exchange_weak(beg, beg + 1));
+			if (beg_.compare_exchange_weak(beg, beg + 1))
+				break;
+		}
 		queue_[slot].store(nullptr);
 		return chunk;
 	}
@@ -47,7 +49,7 @@ class cache {
 		::uint64_t beg, end;
 		::uint64_t slot;
 		end = end_.load();
-		do {
+		for (;;) {
 			beg = beg_.load();
 
 			if (end >= beg + chunks_num_) {
@@ -61,7 +63,10 @@ class cache {
 				end = end_.load();
 				continue;
 			}
-		} while(end_.compare_exchange_weak(end, end + 1));
+
+			if (end_.compare_exchange_weak(end, end + 1))
+				break;
+		}
 		queue_[slot].store(chunk);
 	}
 

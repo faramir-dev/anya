@@ -46,7 +46,7 @@ void upkeep() {
 
 int
 main(void) {
-	std::array<std::thread, 16> thes;
+	std::array<std::thread, 12> thes;
 	for(auto &the: thes) { the = std::thread{test, rand()}; }
 	std::thread the_upkeep{upkeep};
 	for(auto &the: thes) { the.join(); }
