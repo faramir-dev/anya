@@ -32,7 +32,7 @@ class cache {
 			}
 
 			slot = beg % chunks_num_;
-			chunk = queue_[slot];
+			chunk = queue_[slot].load();
 			if (chunk == nullptr) {
 				beg = beg_.load();
 				continue;
@@ -56,7 +56,7 @@ class cache {
 			}
 
 			slot = end % chunks_num_;
-			chunk = queue_[slot];
+			chunk = queue_[slot].load();
 			if (chunk != nullptr) {
 				end = end_.load();
 				continue;
