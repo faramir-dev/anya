@@ -19,13 +19,11 @@ class cache {
 	std::unique_ptr<std::atomic<T*>[]> queue_;
 
 	T* get_chunk() {
-		::uint64_t beg, end;
 		::uint64_t slot;
 		T* chunk = nullptr;
+		::uint64_t beg = beg_.load();
+		::uint64_t end = end_.load();
 		for (;;) {
-			beg = beg_.load();
-			end = end_.load();
-
 			::uint64_t x = beg;
 			for (; x < end; ++x) {
 				slot = x % chunks_num_;
@@ -34,22 +32,33 @@ class cache {
 					break;
 			}
 
-			if (x >= end)
+			if (x >= end) {
+				beg = beg_.load();
+				end = end_.load();
 				continue;
+			}
 
-			if (beg_.compare_exchange_strong(beg, x) && queue_[slot].compare_exchange_strong(chunk, nullptr))
+			if (!beg_.compare_exchange_strong(beg, x)) {
+				end = end_.load();
+				continue;
+			}
+
+			if (queue_[slot].compare_exchange_strong(chunk, nullptr)) {
 				return chunk;
+			} else {
+				beg = beg_.load();
+				end = end_.load();
+				continue;
+			}
 		}
 	}
 
 	void put_chunk(T* chunk) {
-		::uint64_t beg, end;
 		::uint64_t slot;
 		T* prev_chunk = nullptr;
+		::uint64_t beg = beg_.load();
+		::uint64_t end = end_.load();
 		for (;;) {
-			beg = beg_.load();
-			end = end_.load();
-
 			::uint64_t y = end;
 			for (; y < beg + chunks_num_; ++y) {
 				slot = y % chunks_num_;
@@ -58,11 +67,24 @@ class cache {
 					break;
 			}
 
-			if (y >= beg + chunks_num_)
+			if (y >= beg + chunks_num_) {
+				beg = beg_.load();
+				end = end_.load();
 				continue;
+			}
 
-			if (end_.compare_exchange_strong(end, y) && queue_[slot].compare_exchange_strong(prev_chunk, chunk)) // prev_chunk == nullptr
+			if (!end_.compare_exchange_strong(end, y)) {
+				beg = beg_.load();
+				continue;
+			}
+
+		 	if (queue_[slot].compare_exchange_strong(prev_chunk, chunk)) { // prev_chunk == nullptr
 				return;
+			} else {
+				beg = beg_.load();
+				end = end_.load();
+				continue;
+			}
 		}
 	}
 
