@@ -12,5 +12,5 @@ Functions:
 Functions `alloc()` and `free()` don't allocate any memory or don't do any blocking operation. On the other hand, `upkeep()` allocates memory with `new[]` and frees it with `delete[]`. It is necessary to call `upkeep()` from time to time, otherwise, other threads may be frozen in `alloc()` or `free()` -- because they may require chunks while the cache is empty or they may try to return chunks while the cache is full.
 File `mainc.cpp` contains simple test of the functionality:
 
-    $ g++ -Ofast -std=gnu++14 -o main main.cpp
+    $ g++ -std=gnu++14 -Ofast -o main main.cpp
     $ ./main; echo $?

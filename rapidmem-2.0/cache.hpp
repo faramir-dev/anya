@@ -1,0 +1,105 @@
+#pragma once
+
+#include <algorithm>
+#include <atomic>
+#include <cassert>
+#include <cstdint>
+#include <type_traits>
+
+namespace rapidmem {
+
+template <typename T, unsigned M = 4>
+class cache {
+	static_assert(std::is_pod<T>::value, "Only PODs supported");
+	static_assert(M >= 3, "upkeep() not only alocates chunks but also frees them if there is more than (M-1)/M chunks in the queue");
+
+	::size_t chunk_size_;
+	::size_t chunks_num_;
+	std::atomic<::uint64_t> beg_, end_;
+	std::unique_ptr<std::atomic<T*>[]> queue_;
+
+	T* get_chunk() {
+		::uint64_t beg, end;
+		::uint64_t slot;
+		T* chunk = nullptr;
+		for (;;) {
+			beg = beg_.load();
+			end = end_.load();
+
+			::uint64_t x = beg;
+			for (; x < end; ++x) {
+				slot = x % chunks_num_;
+				chunk = queue_[slot].load();
+				if (chunk)
+					break;
+			}
+
+			if (x >= end)
+				continue;
+
+			if (beg_.compare_exchange_strong(beg, x) && queue_[slot].compare_exchange_strong(chunk, nullptr))
+				return chunk;
+		}
+	}
+
+	void put_chunk(T* chunk) {
+		::uint64_t beg, end;
+		::uint64_t slot;
+		T* prev_chunk = nullptr;
+		for (;;) {
+			beg = beg_.load();
+			end = end_.load();
+
+			::uint64_t y = end;
+			for (; y < beg + chunks_num_; ++y) {
+				slot = y % chunks_num_;
+				prev_chunk = queue_[slot].load();
+				if (!prev_chunk)
+					break;
+			}
+
+			if (y >= beg + chunks_num_)
+				continue;
+
+			if (end_.compare_exchange_strong(end, y) && queue_[slot].compare_exchange_strong(prev_chunk, chunk)) // prev_chunk == nullptr
+				return;
+		}
+	}
+
+public:
+	cache(const ::size_t chunk_size, const ::size_t min_chunks_num)
+	: chunk_size_(chunk_size)
+	, chunks_num_(M*min_chunks_num)
+	, beg_(0)
+	, end_(0)
+	, queue_(new std::atomic<T*>[chunks_num_]) {
+		assert(chunk_size_ > 0);
+		assert(chunks_num_ > 0);
+
+		std::fill(&queue_[0], &queue_[chunks_num_], nullptr);
+	}
+
+	void upkeep() {
+		for (;;) {
+			const ::uint64_t beg = beg_.load();
+			const ::uint64_t end = end_.load();
+			if (end > beg + (M-1)*chunks_num_/M) {
+				delete[] get_chunk();
+			} else if (end <= beg + chunks_num_/M) {
+				put_chunk(new T[chunk_size_]);
+			} else {
+				break;
+			}
+		}
+	}
+
+	T* alloc() {
+		return get_chunk();
+	}
+
+	void free(T* chunk) {
+		put_chunk(chunk);
+	}
+};
+
+} /* namespace rapidmem */
