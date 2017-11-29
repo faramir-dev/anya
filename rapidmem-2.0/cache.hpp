@@ -21,33 +21,33 @@ class cache {
 	T* get_chunk() {
 		::uint64_t slot;
 		T* chunk = nullptr;
-		::uint64_t beg = beg_.load();
-		::uint64_t end = end_.load();
+		::uint64_t beg = beg_.load(std::memory_order_relaxed);
+		::uint64_t end = end_.load(std::memory_order_relaxed);
 		for (;;) {
 			::uint64_t x = beg;
 			for (; x < end; ++x) {
 				slot = x % chunks_num_;
-				chunk = queue_[slot].load();
+				chunk = queue_[slot].load(std::memory_order_relaxed);
 				if (chunk)
 					break;
 			}
 
 			if (x >= end) {
-				beg = beg_.load();
-				end = end_.load();
+				beg = beg_.load(std::memory_order_relaxed);
+				end = end_.load(std::memory_order_relaxed);
 				continue;
 			}
 
-			if (!beg_.compare_exchange_strong(beg, x)) {
-				end = end_.load();
+			if (x > beg && !beg_.compare_exchange_strong(beg, x)) {
+				end = end_.load(std::memory_order_relaxed);
 				continue;
 			}
 
 			if (queue_[slot].compare_exchange_strong(chunk, nullptr)) {
 				return chunk;
 			} else {
-				beg = beg_.load();
-				end = end_.load();
+				beg = beg_.load(std::memory_order_relaxed);
+				end = end_.load(std::memory_order_relaxed);
 				continue;
 			}
 		}
@@ -56,33 +56,33 @@ class cache {
 	void put_chunk(T* chunk) {
 		::uint64_t slot;
 		T* prev_chunk = nullptr;
-		::uint64_t beg = beg_.load();
-		::uint64_t end = end_.load();
+		::uint64_t beg = beg_.load(std::memory_order_relaxed);
+		::uint64_t end = end_.load(std::memory_order_relaxed);
 		for (;;) {
 			::uint64_t y = end;
 			for (; y < beg + chunks_num_; ++y) {
 				slot = y % chunks_num_;
-				prev_chunk = queue_[slot].load();
+				prev_chunk = queue_[slot].load(std::memory_order_relaxed);
 				if (!prev_chunk)
 					break;
 			}
 
 			if (y >= beg + chunks_num_) {
-				beg = beg_.load();
-				end = end_.load();
+				beg = beg_.load(std::memory_order_relaxed);
+				end = end_.load(std::memory_order_relaxed);
 				continue;
 			}
 
-			if (!end_.compare_exchange_strong(end, y)) {
-				beg = beg_.load();
+			if (y > end && !end_.compare_exchange_strong(end, y)) {
+				beg = beg_.load(std::memory_order_relaxed);
 				continue;
 			}
 
 		 	if (queue_[slot].compare_exchange_strong(prev_chunk, chunk)) { // prev_chunk == nullptr
 				return;
 			} else {
-				beg = beg_.load();
-				end = end_.load();
+				beg = beg_.load(std::memory_order_relaxed);
+				end = end_.load(std::memory_order_relaxed);
 				continue;
 			}
 		}
@@ -103,8 +103,8 @@ public:
 
 	void upkeep() {
 		for (;;) {
-			const ::uint64_t beg = beg_.load();
-			const ::uint64_t end = end_.load();
+			const ::uint64_t beg = beg_.load(std::memory_order_relaxed);
+			const ::uint64_t end = end_.load(std::memory_order_relaxed);
 			if (end > beg + (M-1)*chunks_num_/M) {
 				delete[] get_chunk();
 			} else if (end <= beg + chunks_num_/M) {
