@@ -14,3 +14,7 @@ File `mainc.cpp` contains simple test of the functionality:
 
     $ g++ -std=gnu++14 -Ofast -o main main.cpp
     $ ./main; echo $?
+
+Compilation for android:
+
+    $ /path/to/sysroot-arm/bin/arm-linux-androideabi-clang++ -static -Ofast -std=gnu++14 -pthread -o main main.cpp
