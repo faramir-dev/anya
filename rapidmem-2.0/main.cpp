@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <cstdlib>
+#include <random>
 #include <thread>
 
 #include "cache.hpp"
@@ -13,10 +13,14 @@ rapidmem::cache<int> cache{4096, 1024};
 typedef int* Chunk;
 
 void test(unsigned seed) {
+	std::default_random_engine rand(seed);
+	std::uniform_int_distribution<int> dist_20(0, 20 - 1);
+	std::uniform_int_distribution<int> dist_1e5(0, 100'000 - 1);
+	std::uniform_int_distribution<int> dist_256(0, 256 - 1);
 	for (int i = 0; i < 100; ++i) {
-		const int chunks_num = rand_r(&seed) % 20;
-		const int sleep_nanos = rand_r(&seed) % 100000;
-		const int b = rand_r(&seed) % 256; // Value that will be stored to every chunk
+		const int chunks_num = dist_20(rand);
+		const int sleep_nanos = dist_1e5(rand);
+		const int b = dist_256(rand); // Value that will be stored to every chunk
 
 		Chunk chunks[chunks_num];
 		std::generate(chunks, chunks + chunks_num, []{ return cache.alloc(); });
